@@ -1,15 +1,21 @@
 import sys
 from io import StringIO
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 from flask_sqlalchemy import SQLAlchemy
 import pandas
 import scipy
+import docker
+import tempfile
+import time
+from requests.exceptions import ReadTimeout
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///code_runs.db'
 db = SQLAlchemy(app)
-CORS(app, resources={r"/run_code": {"origins": "*"}, r"/get_latest_code": {"origins": "*"}, r"/submit_code": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+client = docker.from_env()
 
 @app.before_request
 def create_tables():
@@ -25,15 +31,29 @@ class CodeRun(db.Model):
     result = db.Column(db.String, nullable=False)
 
 @app.route('/submit_code', methods=['POST'])
+@cross_origin(origin='*')
 def submit_code():
     code = request.json.get('code')
     # Redirect stdout
     old_stdout = sys.stdout
     redirected_output = sys.stdout = StringIO()
     try:
-        exec(code)
-        sys.stdout = old_stdout
-        output = redirected_output.getvalue()
+        # Run the code in a Docker container
+        container = client.containers.run(
+            "python-exec-env",  # Use the image created earlier or python:3.11
+            command=["python", "-c", code],
+            detach=True,
+            remove=False,
+            stdout=True,
+            stderr=True
+        )
+        # Wait for the container to finish executing
+        result = container.wait(timeout=5)
+        exit_status = result['StatusCode']
+        # Retrieve logs after the container has stopped
+        output = container.logs(stdout=True, stderr=True).decode('utf-8')
+        container.remove()  # Clean up by removing the container manually
+
         latest_run = CodeRun.query.first()
         if latest_run:
             latest_run.code = code
@@ -42,27 +62,48 @@ def submit_code():
             new_run = CodeRun(code=code, result=output)
             db.session.add(new_run)
         db.session.commit()
-        return jsonify({"result": output}), 200
+
+        return jsonify({"result": output, "status": exit_status}), 200
+
+        return jsonify({"result": output, "status": exit_status}), 200
     except Exception as e:
         sys.stdout = old_stdout
+        container.stop()
+        container.remove()
         return jsonify({"error": str(e)}), 400
 
 @app.route('/run_code', methods=['POST'])
+@cross_origin(origin='*')
 def run_code():
     code = request.json.get('code')
     # Redirect stdout
     old_stdout = sys.stdout
     redirected_output = sys.stdout = StringIO()
     try:
-        exec(code)
-        sys.stdout = old_stdout
-        output = redirected_output.getvalue()
-        return jsonify({"result": output}), 200
+        # Run the code in a Docker container
+        container = client.containers.run(
+            "python-exec-env",  # Use the image created earlier or python:3.11
+            command=["python", "-c", code],
+            detach=True,
+            remove=False,
+            stdout=True,
+            stderr=True
+        )
+        # Wait for the container to finish executing
+        result = container.wait(timeout=5)
+        exit_status = result['StatusCode']
+        # Retrieve logs after the container has stopped
+        output = container.logs(stdout=True, stderr=True).decode('utf-8')
+        container.remove()  # Clean up by removing the container manually
+        return jsonify({"result": output, "status": exit_status}), 200
     except Exception as e:
         sys.stdout = old_stdout
+        container.stop()
+        container.remove()
         return jsonify({"error": str(e)}), 400
 
 @app.route('/get_latest_code', methods=['GET'])
+@cross_origin(origin='*')
 def get_latest_code():
     latest_run = CodeRun.query.first()
     if latest_run:

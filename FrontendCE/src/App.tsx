@@ -18,10 +18,16 @@ function App() {
   const runCode = async () => {
     if (!code) return;
     try {
+      setResult('Loading...')
       const response = await axios.post('http://127.0.0.1:5000/run_code', { code: code });
       console.log(response.data);
-      setResult(`Code tested sucessfully:\n ${response.data["result"]}`)
-      setIsSuccess(true)
+      if (response.data["status"] == 0) {
+        setResult(`Code tested sucessfully:\n ${response.data["result"]}`)
+        setIsSuccess(true)
+      } else {
+        setResult(`Errors testing code:\n ${response.data["result"]}`)
+        setIsSuccess(false)
+      }
     } catch (error) {
       console.error('Error testing code:', error);
       setResult(`Error testing code:\n ${error["response"]["data"]["error"]}`)
@@ -32,12 +38,18 @@ function App() {
   const submitCode = async () => {
     if (!code) return;
     try {
+      setResult('Loading...')
       const response = await axios.post('http://127.0.0.1:5000/submit_code', { code: code });
       console.log(response.data);
-      setResult(`Code tested and submitted sucessfully:\n ${response.data["result"]}`)
-      setIsSuccess(true)
+      if (response.data["status"] == 0) {
+        setResult(`Code tested and submitted sucessfully:\n ${response.data["result"]}`)
+        setIsSuccess(true)
+      } else {
+        setResult(`Errors testing code:\n ${response.data["result"]}`)
+        setIsSuccess(false)
+      }
     } catch (error) {
-      console.error('Error testing code:', error);
+      console.error('Internal Server error:', error);
       setResult(`Error testing code:\n ${error["response"]["data"]["error"]}`)
       setIsSuccess(false)
     }
@@ -80,7 +92,7 @@ function App() {
                 Result Output
         </h1>
       <div className="p-4 border rounded bg-gray-50">
-        <textarea className={`${isSuccess ? 'text-green-500' : 'text-red-500'} w-full`} value={result} />
+        <textarea className={`${isSuccess ? 'text-green-500' : 'text-red-500'} w-full h-40`} value={result} />
       </div>
     </div>
   )
