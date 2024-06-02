@@ -19,7 +19,7 @@ function App() {
     if (!code) return;
     try {
       setResult('Loading...')
-      const response = await axios.post('http://127.0.0.1:5000/run_code', { code: code });
+      const response = await axios.post('http://127.0.0.1:8000/run_code', { code: code });
       console.log(response.data);
       if (response.data["status"] == 0) {
         setResult(`Code tested sucessfully:\n ${response.data["result"]}`)
@@ -30,7 +30,8 @@ function App() {
       }
     } catch (error) {
       console.error('Error testing code:', error);
-      setResult(`Error testing code:\n ${error["response"]["data"]["error"]}`)
+      const errorMessage = error.response?.data?.detail || 'Unknown error occurred';
+      setResult(`Error testing code:\n ${errorMessage}`);
       setIsSuccess(false)
     }
   }
@@ -39,7 +40,7 @@ function App() {
     if (!code) return;
     try {
       setResult('Loading...')
-      const response = await axios.post('http://127.0.0.1:5000/submit_code', { code: code });
+      const response = await axios.post('http://127.0.0.1:8000/submit_code', { code: code });
       console.log(response.data);
       if (response.data["status"] == 0) {
         setResult(`Code tested and submitted sucessfully:\n ${response.data["result"]}`)
@@ -49,8 +50,9 @@ function App() {
         setIsSuccess(false)
       }
     } catch (error) {
-      console.error('Internal Server error:', error);
-      setResult(`Error testing code:\n ${error["response"]["data"]["error"]}`)
+      console.error('Error while submitting code:', error);
+      const errorMessage = error.response?.data?.detail || 'Error while submitting code';
+      setResult(`Error:\n ${errorMessage}`);
       setIsSuccess(false)
     }
   }
@@ -58,11 +60,12 @@ function App() {
   useEffect(() => {
     const fetchCode = async () => {
         try {
-            const response = await axios.get('http://127.0.0.1:5000/get_latest_code');
-            setCode(response.data["latest_code"]); // Adjust according to your actual response structure
-            setResult(`Latest Code Run:\n${response.data["latest_result"]}`)
+            const response = await axios.get('http://127.0.0.1:8000/get_latest_code');
+            console.log(response)
+            setCode(response.data["code"]); // Adjust according to your actual response structure
+            setResult(`Latest Code Run:\n${response.data["result"]}`)
         } catch (err) {
-            setResult('Failed to fetch most recent code');
+            setResult('Submit or test some code to see results');
             console.error(err);
         }
     };
@@ -84,7 +87,7 @@ function App() {
         <h1 className="py-2 text-black">
               Code Editor
         </h1>
-        <Editor height="45vh" defaultLanguage="python" theme="vs-dark" defaultValue="#some comment" value={code} onChange={
+        <Editor height="45vh" defaultLanguage="python" theme="vs-dark" defaultValue="#Insert code here!" value={code} onChange={
           (value) => setCode(value!)
         } onMount={onLoad}></Editor>
       </div>
